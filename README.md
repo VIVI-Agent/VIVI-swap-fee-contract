@@ -2,6 +2,23 @@
 
 This repository contains a **Hardhat** project for deploying and interacting with a specialized Uniswap V2 wrapper contract, **FeeSwapWrapper**, that charges a small fee (in ETH) on swaps. The contract supports **tokens with fee on transfer** by leveraging Uniswap’s `*_SupportingFeeOnTransferTokens` functions.
 
+# Current Deployments & Wallets
+
+## Mainnet
+- Fee Swap Wrapper Contract : 0xa650c34733B2e7be3C20F9B0aA68A50BB4725eE1
+https://basescan.org/address/0xa650c34733B2e7be3C20F9B0aA68A50BB4725eE1
+
+- Fee Receiver Address: 0xf59E87c6B05d047aED4941ff00dD841BD0874D7f
+https://basescan.org/address/0xf59E87c6B05d047aED4941ff00dD841BD0874D7f#internaltx
+
+## Sepolia
+- Fee Swap Wrapper Contract : 0xB18BBE5391105993923e57be81611075979aBB2B
+https://sepolia.basescan.org/address/0xb18bbe5391105993923e57be81611075979abb2b
+
+- Fee Receiver Address: 0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C
+https://sepolia.basescan.org/address/0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C#internaltx
+
+
 ---
 
 ## 1. Overview
