@@ -1,7 +1,3 @@
-Below is a **sample README** in English that provides an overview of your **FeeSwapWrapper** contract, deployment instructions using Hardhat, and additional notes. Feel free to modify any details to match your exact setup.
-
----
-
 # bookie-swap-fee-contract
 
 This repository contains a **Hardhat** project for deploying and interacting with a specialized Uniswap V2 wrapper contract, **FeeSwapWrapper**, that charges a small fee (in ETH) on swaps. The contract supports **tokens with fee on transfer** by leveraging Uniswap’s `*_SupportingFeeOnTransferTokens` functions.
