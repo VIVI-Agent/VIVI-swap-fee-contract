@@ -59,8 +59,6 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
 
         uniswapRouter = IUniswapV2Router02(_router);
         feeReceiver = _feeReceiver;
-        // Si usas OpenZeppelin Ownable >= 4.7, el constructor ya setea owner = msg.sender por defecto.
-        // Si no, podrías hacer _transferOwnership(msg.sender);
     }
 
     /**
@@ -73,7 +71,7 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice (Opcional) Actualiza la dirección del router de Uniswap, en caso de que se use otro DEX o router.
+     * @notice Actualiza la dirección del router de Uniswap, en caso de que uses otro DEX.
      */
     function setRouter(address _router) external onlyOwner {
         require(_router != address(0), "Invalid router address");
@@ -82,15 +80,14 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @dev Calcula el fee en base a un porcentaje (en base 100).
-     * @param amount Monto sobre el que se calcula el fee.
-     * @param percentage Porcentaje de fee (ej. 1 para 1%, 50 para 50%, etc.).
+     * @dev Calcula el fee en base 10000 (basis points):
+     *      50 => 0.50%, 100 => 1.00%, etc.
      */
     function _calculateFee(
         uint256 amount,
-        uint256 percentage
+        uint256 feeBps
     ) internal pure returns (uint256) {
-        return (amount * percentage) / 100;
+        return (amount * feeBps) / 10000;
     }
 
     /**
@@ -100,12 +97,12 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
      *      en el contrato antes y después del swap.
      *
      * @param params Parámetros estructurados del swap (ver `SwapParams`).
-     * @param feePercentage Porcentaje de fee a cobrar (en base 100). Máximo 1 (1%).
-     * @param slippagePercent Slippage permitido (ej. máximo 50 -> 50%).
+     * @param feeBps Fee en basis points (ej. 50 => 0.50%, 100 => 1.00%).
+     * @param slippagePercent Slippage permitido (máximo 50% => 50).
      */
     function swapTokensForETHWithFee(
         SwapParams calldata params,
-        uint256 feePercentage,
+        uint256 feeBps,
         uint256 slippagePercent
     ) external nonReentrant {
         // Validaciones básicas
@@ -119,8 +116,8 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
             "Last token in path must be WETH for ETH swap"
         );
 
-        require(feePercentage <= 1, "Fee too high"); // Máximo 1%
-        require(slippagePercent <= 50, "Slippage too high"); // Máximo 50%
+        require(feeBps <= 100, "Fee too high");
+        require(slippagePercent <= 50, "Slippage too high");
         require(params.amountIn > 0, "AmountIn must be > 0");
 
         IERC20 token = IERC20(tokenIn);
@@ -155,9 +152,6 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
 
         // *** 3) Calcular el mínimo de ETH esperado (con slippage) usando getAmountsOut ***
         uint256 amountOutMin = 0;
-        // Por ejemplo, un getAmountsOut "estimativo"
-        // => Solo sirve si el token no varía en la entrada, pero con fee on transfer
-        // => Típicamente se hace un "try/catch" para no romper si getAmountsOut revierte
         try uniswapRouter.getAmountsOut(realAmountIn, params.path) returns (
             uint256[] memory amounts
         ) {
@@ -186,8 +180,8 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
         uint256 ethReceived = ethBalanceAfter - ethBalanceBefore;
         require(ethReceived > 0, "No ETH received");
 
-        // *** 5) Calcular fee en ETH y transferirlo al feeReceiver ***
-        uint256 feeAmount = _calculateFee(ethReceived, feePercentage);
+        // Calcular fee en ETH => base 10000
+        uint256 feeAmount = _calculateFee(ethReceived, feeBps);
         uint256 ethAfterFee = ethReceived - feeAmount;
 
         // 8) Enviar fee
@@ -210,40 +204,36 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Realiza un swap de ETH por tokens (path[path.length - 1]) y cobra el fee en ETH.
-     *         Aquí no es necesario calcular la parte deflacionaria porque envías ETH, no tokens con fee.
-     * @param params Parámetros estructurados del swap (ver `SwapParams`).
-     * @param feePercentage Porcentaje de fee a cobrar (en base 100). Máximo 1 (1%).
-     * @param slippagePercent Slippage permitido (ej. máximo 50 -> 50%).
+     * @notice swapETHForTokensWithFee cobra el fee en ETH antes de hacer el swap.
+     * @param params Parámetros estructurados.
+     * @param feeBps Fee en basis points (ej. 50 => 0.50%, 100 => 1.00%).
+     * @param slippagePercent Slippage permitido (máximo 50%).
      */
     function swapETHForTokensWithFee(
         SwapParams calldata params,
-        uint256 feePercentage,
+        uint256 feeBps,
         uint256 slippagePercent
     ) external payable nonReentrant {
-        // Validaciones básicas
         require(params.path.length >= 2, "Path must have at least 2 tokens");
         address tokenOut = params.path[params.path.length - 1];
-        // path[0] debería ser WETH si usas un swap standard en UniswapV2 con ETH.
-        // Sin embargo, UniswapV2Periphery hace un wrap/unwrap interno si es ETH,
-        // por lo que típicamente path[0] se setea a WETH al invocar swapExactETHForTokens.
         require(
             params.path[0] == uniswapRouter.WETH(),
             "First token in path must be WETH for ETH swap"
         );
 
-        require(feePercentage <= 1, "Fee too high"); // Máximo 1%
-        require(slippagePercent <= 50, "Slippage too high"); // Máximo 50%
+        // feeBps <= 100 => hasta 1.00%
+        require(feeBps <= 100, "Fee too high");
+        require(slippagePercent <= 50, "Slippage too high");
         require(msg.value > 0, "ETH amount must be > 0");
 
-        // *** 1) Calcular y transferir fee al feeReceiver ***
-        uint256 feeAmount = _calculateFee(msg.value, feePercentage);
+        // 1) Calcular fee (en ETH)
+        uint256 feeAmount = _calculateFee(msg.value, feeBps);
         uint256 amountAfterFee = msg.value - feeAmount;
 
         (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
         require(feeSent, "Fee transfer failed");
 
-        // 3) Calcular 'amountOutMin' (si gustas) usando getAmountsOut
+        // 2) Calcular amountOutMin con slippage
         uint256 amountOutMin = 0;
         try uniswapRouter.getAmountsOut(amountAfterFee, params.path) returns (
             uint256[] memory amounts
@@ -256,9 +246,7 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
 
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(params.recipient);
 
-        // 4) Llamamos 'swapExactETHForTokensSupportingFeeOnTransferTokens'
-        //    Mandando 'amountAfterFee' en value
-
+        // 3) swapExactETHForTokensSupportingFeeOnTransferTokens
         uniswapRouter.swapExactETHForTokensSupportingFeeOnTransferTokens{
             value: amountAfterFee
         }(amountOutMin, params.path, params.recipient, params.deadline);
@@ -266,7 +254,6 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
         uint256 balanceAfter = IERC20(tokenOut).balanceOf(params.recipient);
         uint256 tokensReceived = balanceAfter - balanceBefore;
 
-        // 5) Emitir evento
         emit SwapETHForTokens(
             msg.sender,
             tokenOut,
@@ -276,6 +263,6 @@ contract FeeSwapWrapper is ReentrancyGuard, Ownable {
         );
     }
 
-    // Permite al contrato recibir ETH directamente (ej. refund de algunos protocolos).
+    // Recibir ETH
     receive() external payable {}
 }
