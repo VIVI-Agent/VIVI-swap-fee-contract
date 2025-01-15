@@ -10,13 +10,18 @@ async function main() {
   const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"; // dirección del router en base sepolia
 
   // 1. Obtener el contrato (compilará automáticamente)
-  const FeeSwapWrapper = await ethers.getContractFactory("FeeSwapWrapper");
+  const BookieSwapWrapperUniV2 = await ethers.getContractFactory(
+    "BookieSwapWrapperUniV2"
+  );
 
   // 2. Desplegar el contrato
-  const contract = await FeeSwapWrapper.deploy(uniswapRouter, feeReceiver);
+  const contract = await BookieSwapWrapperUniV2.deploy(
+    uniswapRouter,
+    feeReceiver
+  );
   await contract.deployed();
 
-  console.log("FeeSwapWrapper deployed to:", contract.address);
+  console.log("BookieSwapWrapperUniV2 deployed to:", contract.address);
 }
 
 main()

@@ -6,11 +6,11 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title FeeSwapWrapperAerodrome
- * @notice Similar a `FeeSwapWrapper` de Uniswap V2, pero usando Aerodrome router.
+ * @title BookieSwapWrapperAerodrome
+ * @notice Similar a `BookieSwapWrapperUniV2` de Uniswap V2, pero usando Aerodrome router.
  *         Maneja un fee en ETH y tokens deflacionarios.
  */
-contract FeeSwapWrapperAerodrome is ReentrancyGuard, Ownable {
+contract BookieSwapWrapperAerodrome is ReentrancyGuard, Ownable {
     struct SwapParams {
         address[] path; // e.g. [tokenA, tokenB, tokenC], donde tokenB => WETH en caso de ETH
         uint256 amountIn;
@@ -86,8 +86,6 @@ contract FeeSwapWrapperAerodrome is ReentrancyGuard, Ownable {
         require(slippagePercent <= 50, "slippage max 50%");
 
         address tokenIn = params.path[0];
-        address tokenOut = params.path[params.path.length - 1];
-
         // Aseguramos que al final sea WETH si queremos recibir ETH
         // En Aerodrome, "swapExactTokensForETH" => path final == WETH => luego retira
         // En su router, `swapExactTokensForETH...` hace unwrap internamente.

@@ -7,12 +7,12 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title FeeSwapWrapperV3
+ * @title BookieSwapWrapperUniV3
  * @notice Permite hacer swaps en Uniswap V3 con posibilidad de cobrar un fee en ETH.
  *         Maneja tokens deflacionarios calculando el monto real transferido.
  * @dev Usa ISwapRouter de Uniswap V3. Ejemplo single-hop.
  */
-contract FeeSwapWrapperV3 is ReentrancyGuard, Ownable {
+contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
     struct SwapParams {
         address tokenIn;
         address tokenOut;

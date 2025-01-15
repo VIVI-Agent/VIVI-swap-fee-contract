@@ -7,11 +7,11 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title FeeSwapWrapper
+ * @title BookieSwapWrapperUniV2
  * @notice Este contrato permite hacer swaps en Uniswap V2 con posibilidad de cobrar un fee en ETH.
  *         Maneja de forma especial tokens deflacionarios (fee on transfer) calculando el monto real transferido.
  */
-contract FeeSwapWrapper is ReentrancyGuard, Ownable {
+contract BookieSwapWrapperUniV2 is ReentrancyGuard, Ownable {
     /**
      * @dev Estructura para los parámetros de swap. Se define 'path' para soportar multi-hop.
      *      - path[0] será el tokenIn.
