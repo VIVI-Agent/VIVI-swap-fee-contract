@@ -9,19 +9,18 @@ async function main() {
   const feeReceiver = "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C"; // dirección que recibirá las fees
   const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"; // dirección del router en base sepolia
 
-  // 1. Obtener el contrato (compilará automáticamente)
-  const BookieSwapWrapperUniV2 = await ethers.getContractFactory(
-    "BookieSwapWrapperUniV2"
+  const BookieSwapWrapperAerodrome = await ethers.getContractFactory(
+    "BookieSwapWrapperAerodrome"
   );
 
   // 2. Desplegar el contrato
-  const contract = await BookieSwapWrapperUniV2.deploy(
+  const contract = await BookieSwapWrapperAerodrome.deploy(
     uniswapRouter,
     feeReceiver
   );
   await contract.deployed();
 
-  console.log("BookieSwapWrapperUniV2 deployed to:", contract.address);
+  console.log("BookieSwapWrapperAerodrome deployed to:", contract.address);
 }
 
 main()

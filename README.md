@@ -198,7 +198,10 @@ npx hardhat help
 npx hardhat test
 REPORT_GAS=true npx hardhat test
 npx hardhat node
-npx hardhat run scripts/deploy.ts --network base-sepolia
+
+npx hardhat run scripts/base-sepolia/deploy-bookie-univ2.ts --network base-sepolia
+npx hardhat run scripts/base-sepolia/deploy-bookie-univ3.ts --network base-sepolia
+
 ```
 
 - **`npx hardhat help`** shows general help.
