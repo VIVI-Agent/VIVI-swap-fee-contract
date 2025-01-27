@@ -1,26 +1,51 @@
+// scripts/base-mainnet/deploy-bookie-aero.ts
 import { ethers } from "hardhat";
+import fs from "fs";
+import path from "path";
 
 async function main() {
-  // MAINNET
-  // const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f"; // dirección que recibirá las fees
-  // const uniswapRouter = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"; // dirección del router en base sepolia
+  // 1. Config - inputs
 
-  // SEPOLIA
-  const feeReceiver = "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C"; // dirección que recibirá las fees
-  const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"; // dirección del router en base sepolia
+  const chainName = "base-mainnet";
+  const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f"; // dirección que recibirá las fees
+  const aeroRouter = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"; // dirección del router en base sepolia
 
+  // 2. Obtener la factoría del contrato
   const BookieSwapWrapperAerodrome = await ethers.getContractFactory(
     "BookieSwapWrapperAerodrome"
   );
 
-  // 2. Desplegar el contrato
+  // 3. Desplegar
   const contract = await BookieSwapWrapperAerodrome.deploy(
-    uniswapRouter,
+    aeroRouter,
     feeReceiver
   );
   await contract.deployed();
 
   console.log("BookieSwapWrapperAerodrome deployed to:", contract.address);
+
+  // 4. Generar el objeto con info
+  const outputData = {
+    contractName: "BookieSwapWrapperAerodrome",
+    chain: chainName,
+    address: contract.address,
+    feeReceiver,
+    aeroRouter,
+  };
+
+  const deploymentsDir = path.join(__dirname, "../../deployments");
+  if (!fs.existsSync(deploymentsDir)) {
+    fs.mkdirSync(deploymentsDir, { recursive: true });
+  }
+
+  const outFile = path.join(
+    deploymentsDir,
+    `deploy-BookieSwapWrapperAerodrome-${chainName}.json`
+  );
+
+  fs.writeFileSync(outFile, JSON.stringify(outputData, null, 2));
+
+  console.log(`Deployment info saved to ${outFile}`);
 }
 
 main()

@@ -199,8 +199,20 @@ npx hardhat test
 REPORT_GAS=true npx hardhat test
 npx hardhat node
 
+#######
+SEPOLIA
+
+npx hardhat run scripts/base-sepolia/deploy-bookie-aero.ts --network base-sepolia
 npx hardhat run scripts/base-sepolia/deploy-bookie-univ2.ts --network base-sepolia
 npx hardhat run scripts/base-sepolia/deploy-bookie-univ3.ts --network base-sepolia
+#######
+
+#######
+MAINNET
+
+npx hardhat run scripts/base-mainnet/deploy-bookie-aero.ts --network base-mainnet
+npx hardhat run scripts/base-mainnet/deploy-bookie-univ2.ts --network base-mainnet
+#######
 
 ```
 

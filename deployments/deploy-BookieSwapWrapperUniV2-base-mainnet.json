@@ -1,0 +1,7 @@
+{
+  "contractName": "BookieSwapWrapperUniV2",
+  "chain": "base-mainnet",
+  "address": "0x39ff386aE0208501efA9255187FB28a383c3916A",
+  "feeReceiver": "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f",
+  "uniswapRouter": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
+}
