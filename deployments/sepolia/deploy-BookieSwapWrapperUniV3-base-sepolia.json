@@ -1,7 +1,7 @@
 {
   "contractName": "BookieSwapWrapperUniV3",
   "chain": "base-sepolia",
-  "address": "0xB9cf6ad9d21b5F58F6946a07587708426CCf230f",
+  "address": "0x10Ab72580a644feA6cd6a1E72bC8283332bD8C59",
   "feeReceiver": "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C",
   "uniswapRouterv3": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
   "WETH": "0x4200000000000000000000000000000000000006"

@@ -1,4 +1,4 @@
-// scripts/base-sepolia/deploy-bookie-univ3.ts
+// scripts/base-mainnet/deploy-bookie-univ3.ts
 
 import { ethers } from "hardhat";
 import fs from "fs";

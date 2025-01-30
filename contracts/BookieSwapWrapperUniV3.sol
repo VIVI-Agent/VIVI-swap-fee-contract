@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -133,7 +132,6 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
                 tokenOut: params.tokenOut,
                 fee: params.feeTier,
                 recipient: address(this), // Recibimos WETH aquí, luego unwrap
-                deadline: params.deadline,
                 amountIn: realAmountIn,
                 amountOutMinimum: params.amountOutMin,
                 sqrtPriceLimitX96: 0
@@ -214,7 +212,6 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
                 tokenOut: params.tokenOut,
                 fee: params.feeTier,
                 recipient: params.recipient,
-                deadline: params.deadline,
                 amountIn: wethBalance,
                 amountOutMinimum: params.amountOutMin,
                 sqrtPriceLimitX96: 0
@@ -233,4 +230,22 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
     }
 
     receive() external payable {}
+}
+
+// Interfaz mínima del router de Aerodrome.
+// Ajusta los nombres y funciones a lo que tu router real use.
+interface ISwapRouter {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactInputSingle(
+        ExactInputSingleParams calldata params
+    ) external payable returns (uint256 amountOut);
 }
