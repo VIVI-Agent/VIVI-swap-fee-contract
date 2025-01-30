@@ -212,6 +212,7 @@ MAINNET
 
 npx hardhat run scripts/base-mainnet/deploy-bookie-aero.ts --network base-mainnet
 npx hardhat run scripts/base-mainnet/deploy-bookie-univ2.ts --network base-mainnet
+npx hardhat run scripts/base-mainnet/deploy-bookie-univ3.ts --network base-mainnet
 #######
 
 ```

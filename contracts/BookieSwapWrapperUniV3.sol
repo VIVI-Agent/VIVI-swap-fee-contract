@@ -10,14 +10,14 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @title BookieSwapWrapperUniV3
  * @notice Permite hacer swaps en Uniswap V3 con posibilidad de cobrar un fee en ETH.
  *         Maneja tokens deflacionarios calculando el monto real transferido.
- * @dev Usa ISwapRouter de Uniswap V3. Ejemplo single-hop.
+ * @dev Usa ISwapRouter de Uniswap V3. Ejemplo single-hop (token <-> WETH).
  */
 contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
     struct SwapParams {
         address tokenIn;
         address tokenOut;
         uint24 feeTier; // ej. 3000 => 0.3%
-        uint256 amountIn; // Cuánto tokensIn pasamos
+        uint256 amountIn; // cuántos tokensIn (o 0 si es ETH) se envían
         address recipient;
         uint256 deadline;
         uint256 amountOutMin; // slippage
@@ -45,6 +45,10 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
         uint256 feeAmount
     );
 
+    /**
+     * @dev Constructor: Asigna router V3, feeReceiver y la dirección de WETH.
+     *      Asegúrate de que Ownable(msg.sender) sea correcto para tu versión de OpenZeppelin.
+     */
     constructor(
         address _v3Router,
         address _feeReceiver,
@@ -71,7 +75,9 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
         emit RouterUpdated(_v3Router);
     }
 
-    // Simple helper para fees en base 10000
+    /**
+     * @dev Helper para calcular fee en base 10000 (ej. 50 => 0.50%, 100 => 1%).
+     */
     function _calculateFee(
         uint256 amount,
         uint256 feeBps
@@ -80,8 +86,10 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice swapTokensForETH con Fee en ETH (similar a V2, pero usando exactInputSingle).
-     * @dev single-hop: tokenIn -> WETH -> unwrap WETH -> cobrar fee -> user
+     * @notice swapTokensForETH con fee en ETH (single-hop).
+     * @dev tokenIn -> WETH con exactInputSingle, unwrap WETH->ETH, cobrar fee, enviar ETH al user.
+     * @param params.tokenOut Debe ser WETH.
+     * @param feeBps Por ej. 50 => 0.5%, 100 => 1%.
      */
     function swapTokensForETHWithFee(
         SwapParams calldata params,
@@ -91,12 +99,13 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
             params.tokenOut == WETH,
             "tokenOut must be WETH for ETH result"
         );
-        require(params.amountIn > 0, "No input");
+        require(params.amountIn > 0, "No input tokens");
         require(feeBps <= 100, "Max 1% fee");
 
+        // 1) Tomamos el tokenIn (deflacionario)
         IERC20 tokenIn = IERC20(params.tokenIn);
 
-        // 1) Transfer tokens deflacionarios => realAmountIn
+        // Transfer tokens (deflacionario => realAmountIn)
         uint256 beforeBal = tokenIn.balanceOf(address(this));
         bool ok = tokenIn.transferFrom(
             msg.sender,
@@ -117,13 +126,13 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
             tokenIn.approve(address(uniswapRouter), type(uint256).max);
         }
 
-        // 3) Llamar exactInputSingle(tokenIn->WETH)
+        // 3) Llamamos exactInputSingle(tokenIn->WETH), recipient=this -> recibimos WETH
         ISwapRouter.ExactInputSingleParams memory singleParams = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 fee: params.feeTier,
-                recipient: address(this), // recibimos WETH acá
+                recipient: address(this), // Recibimos WETH aquí, luego unwrap
                 deadline: params.deadline,
                 amountIn: realAmountIn,
                 amountOutMinimum: params.amountOutMin,
@@ -131,23 +140,30 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
             });
 
         uint256 wethReceived = uniswapRouter.exactInputSingle(singleParams);
-        require(wethReceived > 0, "No WETH out from V3");
+        require(wethReceived > 0, "No WETH out from V3 swap");
 
-        // 4) unwrap WETH->ETH
+        // 4) Calculamos cuánta ETH genera el unwrap de WETH
+        uint256 oldEthBal = address(this).balance; // ETH antes de unwrap
+        // unwrap WETH->ETH
         (bool successUnwrap, ) = WETH.call(
             abi.encodeWithSignature("withdraw(uint256)", wethReceived)
         );
         require(successUnwrap, "WETH withdraw failed");
 
-        uint256 ethBal = address(this).balance;
-        // Cobrar fee en ETH
-        uint256 feeAmount = _calculateFee(ethBal, feeBps);
-        uint256 ethAfterFee = ethBal - feeAmount;
+        uint256 newEthBal = address(this).balance; // ETH después de unwrap
+        uint256 newlyUnwrapped = newEthBal - oldEthBal;
+        // Este es el ETH proveniente del swap, sin mezclar leftover.
+
+        require(newlyUnwrapped > 0, "No ETH unwrapped");
+
+        // 5) Cobrar fee en ETH
+        uint256 feeAmount = _calculateFee(newlyUnwrapped, feeBps);
+        uint256 ethAfterFee = newlyUnwrapped - feeAmount;
 
         (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
         require(feeSent, "fee transfer failed");
 
-        // Enviar resto al user
+        // 6) Enviar resto al usuario (params.recipient)
         (bool sentUser, ) = params.recipient.call{value: ethAfterFee}("");
         require(sentUser, "final transfer failed");
 
@@ -155,14 +171,16 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
             msg.sender,
             params.tokenIn,
             realAmountIn,
-            ethBal,
+            newlyUnwrapped,
             feeAmount
         );
     }
 
     /**
-     * @notice swapETHForTokens con Fee en ETH (similar a V2).
-     * @dev single-hop: user ETH -> wrapper -> fee -> remainder -> swap to WETH -> tokenOut
+     * @notice swapETHForTokens con fee en ETH (single-hop).
+     * @dev user ETH -> cobrar fee -> deposit WETH -> exactInputSingle(WETH->tokenOut).
+     * @param params.tokenIn Debe ser WETH.
+     * @param feeBps Por ej. 50 => 0.5%, 100 => 1%.
      */
     function swapETHForTokensWithFee(
         SwapParams calldata params,
@@ -172,18 +190,14 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
         require(msg.value > 0, "No ETH sent");
         require(feeBps <= 100, "Max 1% fee");
 
-        // 1) Cobrar fee en ETH
+        // 1) Cobrar fee
         uint256 feeAmount = _calculateFee(msg.value, feeBps);
         uint256 amountAfterFee = msg.value - feeAmount;
 
         (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
         require(feeSent, "fee transfer fail");
 
-        // 2) Llamar a exactInputSingle( WETH-> tokenOut ), depositar WETH con wrap
-        //   Sin embargo, ISwapRouter V3 no soporta deposit WETH internamente
-        //   normal es: router.exactInputSingle{value: amountAfterFee}(...),
-        //   con "multicall" o PeripheryPayments.  Para simplificar:
-        //   - deposit WETH
+        // 2) wrap el ETH leftover -> WETH
         (bool successWrap, ) = WETH.call{value: amountAfterFee}(
             abi.encodeWithSignature("deposit()")
         );
@@ -193,6 +207,7 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
         IERC20(WETH).approve(address(uniswapRouter), wethBalance);
 
+        // 4) exactInputSingle(WETH -> tokenOut), recipient = params.recipient
         ISwapRouter.ExactInputSingleParams memory singleParams = ISwapRouter
             .ExactInputSingleParams({
                 tokenIn: WETH,
@@ -200,7 +215,7 @@ contract BookieSwapWrapperUniV3 is ReentrancyGuard, Ownable {
                 fee: params.feeTier,
                 recipient: params.recipient,
                 deadline: params.deadline,
-                amountIn: wethBalance, // todo lo que depositamos
+                amountIn: wethBalance,
                 amountOutMinimum: params.amountOutMin,
                 sqrtPriceLimitX96: 0
             });

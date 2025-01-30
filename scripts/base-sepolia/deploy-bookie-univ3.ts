@@ -37,7 +37,7 @@ async function main() {
   };
 
   // 5. Guardar en un archivo JSON
-  const deploymentsDir = path.join(__dirname, "../../deployments");
+  const deploymentsDir = path.join(__dirname, "../../deployments/sepolia");
   // Ajusta la ruta según tu estructura de directorios
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });

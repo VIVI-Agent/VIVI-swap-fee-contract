@@ -32,7 +32,7 @@ async function main() {
     uniswapRouter,
   };
 
-  const deploymentsDir = path.join(__dirname, "../../deployments");
+  const deploymentsDir = path.join(__dirname, "../../deployments/sepolia");
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
   }

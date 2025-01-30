@@ -33,7 +33,7 @@ async function main() {
     aeroRouter,
   };
 
-  const deploymentsDir = path.join(__dirname, "../../deployments");
+  const deploymentsDir = path.join(__dirname, "../../deployments/mainnet");
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
   }

@@ -7,8 +7,8 @@ async function main() {
   // 1. Config - inputs
 
   const chainName = "base-sepolia";
-  const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f"; // dirección que recibirá las fees
-  const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"; // dirección del router en base sepolia
+  const feeReceiver = "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C"; // dirección que recibirá las fees
+  const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"; // dirección del router en base sepolia, no aero este es univ2, solo para test deploy
 
   // 2. Obtener la factoría del contrato
   const BookieSwapWrapperAerodrome = await ethers.getContractFactory(
@@ -33,7 +33,7 @@ async function main() {
     uniswapRouter,
   };
 
-  const deploymentsDir = path.join(__dirname, "../../deployments");
+  const deploymentsDir = path.join(__dirname, "../../deployments/sepolia");
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
   }
