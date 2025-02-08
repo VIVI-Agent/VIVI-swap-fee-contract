@@ -8,9 +8,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title VIVIUniswapV2
- * @notice Permite swaps en Uniswap V2 con fee en ETH,
- *         usando funciones VIVIBuy (ETH->tokens) y VIVISell (tokens->ETH),
- *         y eventos Buy / Sell para reportar la actividad.
+ * @notice Enables swaps on Uniswap V2 with an ETH fee,
+ *         using VIVIBuy (ETH->tokens) and VIVISell (tokens->ETH),
+ *         and Buy / Sell events to report activity.
  */
 contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
     struct SwapParams {
@@ -27,13 +27,13 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
     event RouterUpdated(address indexed newRouter);
 
     /**
-     * @dev Evento *Sell* (equivale a tokens->ETH).
-     * @param user Quién invoca
-     * @param tokenIn El token que se vende
-     * @param tokensIn Cuántos tokensIn se enviaron
-     * @param ethOut ETH bruto obtenido antes de fee
-     * @param ethOutAfterFee ETH neto después de fee
-     * @param feeAmount El fee en ETH
+     * @dev *Sell* event (equivalent to tokens->ETH).
+     * @param user The caller
+     * @param tokenIn Token being sold
+     * @param tokensIn Number of tokens sent
+     * @param ethOut The gross ETH received before fees
+     * @param ethOutAfterFee The net ETH after fee
+     * @param feeAmount Fee in ETH
      */
     event Sell(
         address indexed user,
@@ -45,13 +45,13 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
     );
 
     /**
-     * @dev Evento *Buy* (equivale a ETH->tokens).
-     * @param user Quién invoca
-     * @param tokenOut El token que se compra
-     * @param ethIn ETH bruto enviado
-     * @param ethInAfterFee ETH neto luego de fee
-     * @param tokensOut La cantidad final de tokens comprados
-     * @param feeAmount Fee en ETH
+     * @dev *Buy* event (equivalent to ETH->tokens).
+     * @param user The caller
+     * @param tokenOut Token being bought
+     * @param ethIn The gross ETH sent
+     * @param ethInAfterFee The net ETH after fee
+     * @param tokensOut The final amount of tokens purchased
+     * @param feeAmount Fee in ETH
      */
     event Buy(
         address indexed user,
@@ -91,8 +91,8 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice VIVISell => tokens->ETH con fee en ETH post-swap.
-     * @param params swap params
+     * @notice VIVISell => tokens->ETH with an ETH fee applied after the swap.
+     * @param params Swap parameters
      * @param feeBps e.g. 50 => 0.5%, 100 => 1.00%
      * @param slippagePercent 0..50%
      */
@@ -109,7 +109,7 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         require(slippagePercent <= 50, "slippage>50%");
         require(params.amountIn > 0, "amtIn=0");
 
-        // 1) Transfer tokens del user
+        // 1) Transfer tokens from the user
         IERC20 t = IERC20(tokenIn);
         uint256 bBefore = t.balanceOf(address(this));
         bool ok = t.transferFrom(msg.sender, address(this), params.amountIn);
@@ -118,7 +118,7 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         uint256 realIn = bAfter - bBefore;
         require(realIn > 0, "no tokens arrived");
 
-        // 2) Approve router
+        // 2) Approve the router
         uint256 curAllow = t.allowance(address(this), address(uniswapRouter));
         if (curAllow < realIn) {
             t.approve(address(uniswapRouter), type(uint256).max);
@@ -141,9 +141,9 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
             revert("UniswapV2 getAmountsOut unknown error");
         }
 
-        // 4) measure ETH bal
+        // 4) Measure the ETH balance
         uint256 ethBefore = address(this).balance;
-        // swap
+        // Perform the swap
         uniswapRouter.swapExactTokensForETHSupportingFeeOnTransferTokens(
             realIn,
             amountOutMin,
@@ -155,14 +155,14 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         uint256 ethGot = ethAfter - ethBefore;
         require(ethGot > 0, "No ETH out");
 
-        // 5) fee
+        // 5) Fee
         uint256 feeAmount = _calculateFee(ethGot, feeBps);
         uint256 ethNet = ethGot - feeAmount;
 
         (bool feeOk, ) = feeReceiver.call{value: feeAmount}("");
         require(feeOk, "Fee transfer fail");
 
-        // 6) user
+        // 6) Send net ETH to user
         (bool userOk, ) = params.recipient.call{value: ethNet}("");
         require(userOk, "ETH transfer fail");
 
@@ -177,10 +177,10 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice VIVIBuy => ETH->tokens, cobro fee en ETH antes del swap.
-     * @param params ...
-     * @param feeBps ...
-     * @param slippagePercent ...
+     * @notice VIVIBuy => ETH->tokens, applying an ETH fee before the swap.
+     * @param params Swap parameters
+     * @param feeBps e.g. 50 => 0.5%, 100 => 1.00%
+     * @param slippagePercent 0..50%
      */
     function VIVIBuy(
         SwapParams calldata params,
@@ -195,7 +195,7 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         require(feeBps <= 100, "fee>1%");
         require(slippagePercent <= 50, "slippage>50%");
 
-        // 1) fee
+        // 1) Fee
         uint256 feeAmt = _calculateFee(msg.value, feeBps);
         uint256 ethNet = msg.value - feeAmt;
 
@@ -218,7 +218,7 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
             revert("UniswapV2 getAmountsOut unknown error");
         }
 
-        // 3) measure tokens
+        // 3) Measure tokens
         uint256 balBefore = IERC20(tokenOut).balanceOf(params.recipient);
 
         uniswapRouter.swapExactETHForTokensSupportingFeeOnTransferTokens{
