@@ -10,22 +10,17 @@ async function main() {
   const uniswapRouter = "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602";
 
   // 2. Obtener la factoría del contrato
-  const BookieSwapWrapperUniV2 = await ethers.getContractFactory(
-    "BookieSwapWrapperUniV2"
-  );
+  const VIVIUniswapV2 = await ethers.getContractFactory("VIVIUniswapV2");
 
   // 3. Desplegar
-  const contract = await BookieSwapWrapperUniV2.deploy(
-    uniswapRouter,
-    feeReceiver
-  );
+  const contract = await VIVIUniswapV2.deploy(uniswapRouter, feeReceiver);
   await contract.deployed();
 
-  console.log("BookieSwapWrapperUniV2 deployed to:", contract.address);
+  console.log("VIVIUniswapV2 deployed to:", contract.address);
 
   // 4. Generar el objeto con info
   const outputData = {
-    contractName: "BookieSwapWrapperUniV2",
+    contractName: "VIVIUniswapV2",
     chain: chainName,
     address: contract.address,
     feeReceiver,
@@ -39,7 +34,7 @@ async function main() {
 
   const outFile = path.join(
     deploymentsDir,
-    `deploy-BookieSwapWrapperUniV2-${chainName}.json`
+    `deploy-VIVIUniswapV2-${chainName}.json`
   );
 
   fs.writeFileSync(outFile, JSON.stringify(outputData, null, 2));
