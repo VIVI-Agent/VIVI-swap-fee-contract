@@ -6,7 +6,7 @@ import path from "path";
 async function main() {
   // 1. Config - inputs
   const chainName = "base-mainnet";
-  const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f";
+  const feeReceiver = "0x31A57F2e2A5c293dE03AF73d0048aFd4F4f1Cde7";
   const uniswapRouter = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24";
 
   // 2. Obtener la factoría del contrato

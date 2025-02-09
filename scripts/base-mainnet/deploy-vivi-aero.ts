@@ -7,7 +7,7 @@ async function main() {
   // 1. Config - inputs
 
   const chainName = "base-mainnet";
-  const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f"; // dirección que recibirá las fees
+  const feeReceiver = "0x31A57F2e2A5c293dE03AF73d0048aFd4F4f1Cde7"; // dirección que recibirá las fees
   const aeroRouter = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"; // dirección del router en base sepolia
   const WETH = "0x4200000000000000000000000000000000000006";
 

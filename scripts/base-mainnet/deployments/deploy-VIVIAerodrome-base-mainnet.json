@@ -1,0 +1,7 @@
+{
+  "contractName": "VIVIAerodrome",
+  "chain": "base-mainnet",
+  "address": "0x2404aacE8f749f0aF4af8C7dace0844b1c28b906",
+  "feeReceiver": "0x31A57F2e2A5c293dE03AF73d0048aFd4F4f1Cde7",
+  "aeroRouter": "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"
+}
