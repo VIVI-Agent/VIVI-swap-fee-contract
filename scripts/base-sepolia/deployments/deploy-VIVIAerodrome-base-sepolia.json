@@ -1,0 +1,7 @@
+{
+  "contractName": "VIVIAerodrome",
+  "chain": "base-sepolia",
+  "address": "0x100A5AF73412Cb5EFB6e38FF1c070A36157eBe8b",
+  "feeReceiver": "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C",
+  "uniswapRouter": "0x1689E7B1F10000AE47eBfE339a4f69dECd19F602"
+}

@@ -1,0 +1,8 @@
+{
+  "contractName": "VIVIUniswapV3",
+  "chain": "base-sepolia",
+  "address": "0xA829Dd890714464380E8908d4559D740Be3C45fB",
+  "feeReceiver": "0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C",
+  "uniswapRouterv3": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
+  "WETH": "0x4200000000000000000000000000000000000006"
+}

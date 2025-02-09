@@ -1,33 +1,9 @@
-# bookie-swap-fee-contract
+# VIVI-contracts
 
-This repository contains a **Hardhat** project for deploying and interacting with a specialized Uniswap V2 wrapper contract, **FeeSwapWrapper**, that charges a small fee (in ETH) on swaps. The contract supports **tokens with fee on transfer** by leveraging Uniswap’s `*_SupportingFeeOnTransferTokens` functions.
-
-# Current Deployments & Wallets
-
-## Mainnet
-- Fee Swap Wrapper Contract : 0xa650c34733B2e7be3C20F9B0aA68A50BB4725eE1
-https://basescan.org/address/0xa650c34733B2e7be3C20F9B0aA68A50BB4725eE1
-
-- Fee Receiver Address: 0xf59E87c6B05d047aED4941ff00dD841BD0874D7f
-https://basescan.org/address/0xf59E87c6B05d047aED4941ff00dD841BD0874D7f#internaltx
-
-## Sepolia
-- Fee Swap Wrapper Contract : 0xB18BBE5391105993923e57be81611075979aBB2B
-https://sepolia.basescan.org/address/0xb18bbe5391105993923e57be81611075979abb2b
-
-- Fee Receiver Address: 0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C
-https://sepolia.basescan.org/address/0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C#internaltx
-
-
----
+This repository contains a **Hardhat** project for deploying and interacting with a specialized Uniswap V2, V3, Aerodrome wrapper contracts, that charges a small fee (in ETH) on swaps.
 
 ## 1. Overview
 
-- **Contract**: [FeeSwapWrapper.sol](./contracts/FeeSwapWrapper.sol)
-- **Purpose**:
-  1. Perform swaps on Uniswap V2 (e.g., Base Sepolia, Base Mainnet)
-  2. Charge a small fee (in ETH)
-  3. Handle “deflationary” tokens (fee on transfer) gracefully
 - **Tech Stack**:
   - [Hardhat](https://hardhat.org/) for compilation, testing, and deployment
   - [OpenZeppelin](https://github.com/OpenZeppelin/openzeppelin-contracts) for `Ownable` and `ReentrancyGuard`
@@ -37,27 +13,27 @@ https://sepolia.basescan.org/address/0x8Fd7a6a86EacFe6b159fd253f9de3895B8e1B72C#
   - [Base Sepolia](https://sepolia.base.org/) for testing.
   - [Base Mainnet](https://base.org/) for production.
 
----
-
 ## 2. Project Structure
 
 ```
+.
 ├── contracts
-│   └── FeeSwapWrapper.sol        # Main contract
-├── scripts
-│   └── deploy.ts                 # Example deploy script
+│   ├── VIVIAerodrome.sol
+│   ├── VIVIUniswapV2.sol
+│   └── VIVIUniswapV3.sol
+├── hardhat.config.ts
 ├── package.json
-├── hardhat.config.ts (or .js)
-└── README.md
+├── README.md
+├── scripts
+│   ├── base-mainnet
+│   │   ├── deploy-vivi-aero.ts
+│   │   ├── deploy-vivi-univ2.ts
+│   │   └── deploy-vivi-univ3.ts
+│   └── base-sepolia
+│       ├── deploy-vivi-aero.ts
+│       ├── deploy-vivi-univ2.ts
+│       └── deploy-vivi-univ3.ts
 ```
-
-Key files and folders:
-
-- **contracts/FeeSwapWrapper.sol**: The core contract code.
-- **scripts/deploy.ts**: Sample Hardhat script to deploy the contract.
-- **hardhat.config.ts**: Configuration for Hardhat tasks, networks, plugins, etc.
-
----
 
 ## 3. Installation & Setup
 
@@ -71,105 +47,25 @@ Use of yarn is requiered.
 yarn
 ```
 
-3. **Configure Hardhat**:
-
-   In `hardhat.config.ts` (or `.js`), set up any custom networks for **Base Sepolia** or **Base Mainnet**. Example:
-
-   ```ts
-   networks: {
-     "base-sepolia": {
-       url: "https://sepolia.base.org", // or your custom RPC
-       accounts: [PRIVATE_KEY]
-     },
-     "base-mainnet": {
-       url: "https://mainnet.base.org", // or your custom RPC
-       accounts: [PRIVATE_KEY]
-     },
-     // ...
-   },
-   ```
-
-   > **Note**: Store your `PRIVATE_KEY` in a `.env` or secrets manager, not in the repo.
-
----
-
-## 4. The FeeSwapWrapper Contract
-
-### Key Features
-
-1. **Fee in ETH**
-
-   - The contract charges a small fee (up to 1%) in ETH.
-   - Fee is sent to `feeReceiver`, configurable by the owner.
-
-2. **SwapTokensForETHWithFee**
-
-   - Uses `swapExactTokensForETHSupportingFeeOnTransferTokens`.
-   - Calculates real amount of tokens received, then does the swap.
-   - Deducts ETH fee before sending the remainder to the recipient.
-
-3. **SwapETHForTokensWithFee**
-
-   - Swaps ETH → tokens (also supporting fee on transfer for tokens).
-   - Takes an ETH fee upfront.
-
-4. **Upgradable Router**
-
-   - You can call `setRouter` (onlyOwner) if you want to switch the router in the future.
-
-5. **Ownable**
-   - Uses OpenZeppelin’s `Ownable` to secure admin functions.
-   - The constructor sets the `owner` to the deployer by default.
-
-### Deployment Parameters
-
-- **`_router`**: Address of Uniswap V2 Router on the chosen network (e.g., Base Sepolia).
-- **`_feeReceiver`**: Address that will receive the ETH fees.
-
-### Events
-
-- `SwapTokensForETH(sender, tokenIn, amountIn, ethReceived, ethAfterFee, feeAmount)`
-- `SwapETHForTokens(sender, tokenOut, ethIn, tokensReceived, feeAmount)`
-- `FeeReceiverUpdated(newFeeReceiver)`
-- `RouterUpdated(newRouter)`
-
----
-
-## 5. Deployment
-
-**Example**: [scripts/deploy.ts](./scripts/deploy.ts)
-
-```ts
-import { ethers } from "hardhat";
-
-async function main() {
-  const feeReceiver = "0xf59E87c6B05d047aED4941ff00dD841BD0874D7f";
-  const uniswapRouter = "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"; // Router on Base Sepolia
-
-  // 1) Compile & get contract factory
-  const FeeSwapWrapper = await ethers.getContractFactory("FeeSwapWrapper");
-
-  // 2) Deploy with constructor args
-  const contract = await FeeSwapWrapper.deploy(uniswapRouter, feeReceiver);
-  await contract.deployed();
-
-  console.log("FeeSwapWrapper deployed to:", contract.address);
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-```
-
-### How to Run
+## 4. How to Run
 
 ```bash
-# Deploy to Base Sepolia
-npx hardhat run scripts/deploy.ts --network base-sepolia
 
-# Deploy to Base Mainnet (assuming config in hardhat.config)
-npx hardhat run scripts/deploy.ts --network base-mainnet
+#######
+SEPOLIA
+
+npx hardhat run scripts/base-sepolia/deploy-vivi-aero.ts --network base-sepolia
+npx hardhat run scripts/base-sepolia/deploy-vivi-univ2.ts --network base-sepolia
+npx hardhat run scripts/base-sepolia/deploy-vivi-univ3.ts --network base-sepolia
+#######
+
+#######
+MAINNET
+
+npx hardhat run scripts/base-mainnet/deploy-vivi-aero.ts --network base-mainnet
+npx hardhat run scripts/base-mainnet/deploy-vivi-univ2.ts --network base-mainnet
+npx hardhat run scripts/base-mainnet/deploy-vivi-univ3.ts --network base-mainnet
+#######
 ```
 
 After deployment, you’ll see something like:
@@ -178,35 +74,9 @@ After deployment, you’ll see something like:
 FeeSwapWrapper deployed to: 0xYourContractAddress
 ```
 
-Take note of the contract address.
+A _deployment_ folder in the scripts/base-mainnet or scripts/base-sepolia directory will be created with the deploment information to store each contract addresses in a separated file.
 
----
-
-## 6. Usage & Testing
-
-1. **Interacting with the contract**:
-
-   - Use `npx hardhat console --network base-sepolia` or similar.
-   - Or integrate from a front-end or a script using Ethers.js or Viem.
-
-2. **For local testing**:
-
-   - You can run a Hardhat local node: `npx hardhat node`.
-   - Deploy the contract to `localhost` then interact via scripts or console.
-
-3. **Slippage & Fee**:
-
-   - The contract enforces `feePercentage <= 1` (i.e., max 1%).
-   - The `slippagePercent <= 50` is also a requirement.
-   - If either fails, the transaction reverts.
-
-4. **Deflationary Tokens**:
-   - The contract calculates the real tokens transferred using `balanceOf` differences.
-   - Uses `_SupportingFeeOnTransferTokens` router calls to handle fee-on-transfer tokens gracefully.
-
----
-
-## 7. Example Hardhat Tasks
+## 5. Example Hardhat Tasks
 
 Hardhat provides built-in tasks and you can define more in `tasks/`. Some default commands:
 
@@ -215,16 +85,13 @@ npx hardhat help
 npx hardhat test
 REPORT_GAS=true npx hardhat test
 npx hardhat node
-npx hardhat run scripts/deploy.ts --network base-sepolia
 ```
 
 - **`npx hardhat help`** shows general help.
 - **`npx hardhat test`** runs your tests (if created).
 - **`npx hardhat node`** starts a local dev network.
 
----
-
-## 8. Dependencies
+## 6. Dependencies
 
 > Relevant sections from [package.json](./package.json):
 
@@ -238,21 +105,3 @@ Additional dev tools:
 
 - **dotenv** for environment variables.
 - **hardhat-gas-reporter** for analyzing gas usage.
-
----
-
-## 9. Security Considerations
-
-1. **FeeReceiver** has to be a trusted address.
-2. **setRouter** can only be called by `owner`; ensure you trust the new router.
-3. **Slippage**: Users set slippage up to 50%. If they incorrectly set it, the swap might revert or result in less favorable execution.
-4. **Allowance** & **approvals**: The contract automatically approves the router for `type(uint256).max`; typical Uniswap pattern but be aware of unlimited approvals.
-
----
-
-## 10. Contributing
-
-1. **Clone this repo**
-2. Create a new branch for your feature (`git checkout -b feature/my-update`).
-3. **Commit** your changes, run tests if any.
-4. **Open** a Pull Request.
