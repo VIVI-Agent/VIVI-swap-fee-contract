@@ -67,8 +67,6 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         require(_feeReceiver != address(0), "Fee=0");
         uniswapRouter = IUniswapV2Router02(_router);
         feeReceiver = _feeReceiver;
-
-        _transferOwnership(msg.sender);
     }
 
     function setFeeReceiver(address _fr) external onlyOwner {

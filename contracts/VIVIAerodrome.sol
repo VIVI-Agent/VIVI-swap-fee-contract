@@ -96,7 +96,6 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
         aerodromeRouter = IAerodromeRouter(_router);
         feeReceiver = _feeReceiver;
         WETH = _weth;
-        _transferOwnership(msg.sender);
     }
 
     /**
