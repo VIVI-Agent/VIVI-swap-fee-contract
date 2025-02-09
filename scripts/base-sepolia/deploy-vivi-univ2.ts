@@ -1,4 +1,4 @@
-// scripts/base-sepolia/deploy-bookie-univ2.ts
+// scripts/base-sepolia/deploy-vivi-univ2.ts
 import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";

@@ -1,4 +1,4 @@
-// scripts/base-sepolia/deploy-bookie-univ3.ts
+// scripts/base-sepolia/deploy-vivi-univ3.ts
 
 import { ethers } from "hardhat";
 import fs from "fs";
@@ -11,24 +11,22 @@ async function main() {
   const uniswapRouterv3 = "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4";
   const WETH = "0x4200000000000000000000000000000000000006";
 
-  // 2. Obtener la factoría del contrato BookieSwapWrapperUniV3
-  const BookieSwapWrapperUniV3 = await ethers.getContractFactory(
-    "BookieSwapWrapperUniV3"
-  );
+  // 2. Obtener la factoría del contrato VIVIUniswapV3
+  const VIVIUniswapV3 = await ethers.getContractFactory("VIVIUniswapV3");
 
   // 3. Desplegar
-  const contract = await BookieSwapWrapperUniV3.deploy(
+  const contract = await VIVIUniswapV3.deploy(
     uniswapRouterv3,
     feeReceiver,
     WETH
   );
   await contract.deployed();
 
-  console.log("BookieSwapWrapperUniV3 deployed to:", contract.address);
+  console.log("VIVIUniswapV3 deployed to:", contract.address);
 
   // 4. Preparar datos para el archivo de salida
   const outputData = {
-    contractName: "BookieSwapWrapperUniV3",
+    contractName: "VIVIUniswapV3",
     chain: chainName,
     address: contract.address,
     feeReceiver,
@@ -37,7 +35,7 @@ async function main() {
   };
 
   // 5. Guardar en un archivo JSON
-  const deploymentsDir = path.join(__dirname, "../../deployments/sepolia");
+  const deploymentsDir = path.join(__dirname, "./deployments");
   // Ajusta la ruta según tu estructura de directorios
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
@@ -45,7 +43,7 @@ async function main() {
 
   const outFile = path.join(
     deploymentsDir,
-    `deploy-BookieSwapWrapperUniV3-${chainName}.json`
+    `deploy-VIVIUniswapV3-${chainName}.json`
   );
 
   fs.writeFileSync(outFile, JSON.stringify(outputData, null, 2), "utf-8");

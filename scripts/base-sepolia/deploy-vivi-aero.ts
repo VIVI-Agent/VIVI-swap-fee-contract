@@ -1,4 +1,4 @@
-// scripts/base-sepolia/deploy-bookie-aero.ts
+// scripts/base-sepolia/deploy-vivi-aero.ts
 import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";

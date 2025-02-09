@@ -1,4 +1,4 @@
-// scripts/base-mainnet/deploy-bookie-univ2.ts
+// scripts/base-mainnet/deploy-vivi-univ2.ts
 import { ethers } from "hardhat";
 import fs from "fs";
 import path from "path";
@@ -27,7 +27,7 @@ async function main() {
     uniswapRouter,
   };
 
-  const deploymentsDir = path.join(__dirname, "../../deployments/mainnet");
+  const deploymentsDir = path.join(__dirname, "./deployments");
   if (!fs.existsSync(deploymentsDir)) {
     fs.mkdirSync(deploymentsDir, { recursive: true });
   }
