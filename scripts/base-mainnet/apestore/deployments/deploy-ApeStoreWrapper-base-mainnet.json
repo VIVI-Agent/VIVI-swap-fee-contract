@@ -1,0 +1,7 @@
+{
+  "contractName": "ApeStoreWrapper",
+  "chain": "base-mainnet",
+  "address": "0x4F4eEca14D0c875cb8dAea054aFD0B3Ab1d368BC",
+  "feeReceiver": "0x5b2d81222EEc58Ce26779BdB043a828041Cf7420",
+  "apestoreRouter": "0xc750af290bb41ca5dec04f22cd1318e940dd826a"
+}
