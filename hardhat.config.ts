@@ -8,9 +8,6 @@ import "@nomiclabs/hardhat-etherscan";
 dotenv.config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const COINMARKETCAP_API_KEY = process.env.COINMARKETCAP_API_KEY;
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
-const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY;
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -36,14 +33,6 @@ const config: HardhatUserConfig = {
       url: "https://sepolia.base.org",
       accounts: [PRIVATE_KEY as string],
     },
-  },
-  gasReporter: {
-    L2: "base",
-    L1Etherscan: ETHERSCAN_API_KEY,
-    L2Etherscan: BASESCAN_API_KEY,
-    enabled: true,
-    currency: "USD",
-    coinmarketcap: COINMARKETCAP_API_KEY,
   },
 };
 
