@@ -1,14 +1,12 @@
 // scripts/approveViviApeStore.ts
 import { ethers } from "hardhat";
-import axios from "axios";
 import dotenv from "dotenv";
 import { BigNumber, BigNumberish, ContractTransaction } from "ethers";
 dotenv.config();
 
 // Read environment variables
 const VIVI_APESTORE_ADDRESS = process.env.VIVI_APESTORE_CONTRACT!;
-const TOKEN = "0xad2ef018d8252b61940b3363b23ff166f60d9fed"; // Token address to approve
-const CHAIN_ID = 8453; // Base Chain ID
+const TOKEN = "0x48a733fd7a8e5ab4b0a83b2f344a74282376f020"; // Token to buy
 
 // Token amount to approve - approve maximum possible to avoid needing to approve again
 const APPROVAL_AMOUNT = ethers.constants.MaxUint256;

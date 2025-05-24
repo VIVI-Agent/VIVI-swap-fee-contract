@@ -1,4 +1,4 @@
-// scripts/testApeStoreBuy.ts
+// scripts/testApeStoreBuy-fixed.ts
 import { ethers } from "hardhat";
 import { BigNumber } from "ethers";
 import axios from "axios";
@@ -7,15 +7,13 @@ dotenv.config();
 
 // Read environment variables
 const VIVI_APESTORE_ADDRESS = process.env.VIVI_APESTORE_CONTRACT!;
-const APESTORE_ROUTER = process.env.APESTORE_ROUTER!;
-const FEE_RECEIVER = process.env.FEE_RECEIVER!;
+const TOKEN = "0x48a733fd7a8e5ab4b0a83b2f344a74282376f020"; // Token to buy
 
-if (!VIVI_APESTORE_ADDRESS || !APESTORE_ROUTER || !FEE_RECEIVER) {
+if (!VIVI_APESTORE_ADDRESS) {
   throw new Error("Missing required environment variables");
 }
 
 // Constants
-const TOKEN = "0xad2ef018d8252b61940b3363b23ff166f60d9fed"; // Token to buy
 const CHAIN_ID = 8453; // Base Chain ID
 const TOTAL_ETH = ethers.utils.parseEther("0.0001"); // Amount of ETH to spend
 const FEE_BPS = 100; // 1% fee
@@ -51,10 +49,28 @@ async function getSignature(
   return res.data;
 }
 
+function calculateFee(amount: BigNumber, bps: number): BigNumber {
+  return amount.mul(bps).div(10000);
+}
+
 async function main() {
   const [signer] = await ethers.getSigners();
   console.log(`Using signer address: ${signer.address}`);
   console.log(`Using VIVIApeStore contract: ${VIVI_APESTORE_ADDRESS}`);
+
+  // *** CÁLCULO CORRECTO DE FEES ***
+  const feeAmount = calculateFee(TOTAL_ETH, FEE_BPS);
+  const ethForRouter = TOTAL_ETH.sub(feeAmount);
+
+  console.log("=== Fee Calculation ===");
+  console.log(`Total ETH: ${ethers.utils.formatEther(TOTAL_ETH)}`);
+  console.log(
+    `Fee Amount (${FEE_BPS / 100}%): ${ethers.utils.formatEther(feeAmount)}`
+  );
+  console.log(`ETH for Router: ${ethers.utils.formatEther(ethForRouter)}`);
+  console.log(
+    `Verification: ${ethers.utils.formatEther(feeAmount.add(ethForRouter))}`
+  );
 
   // Get contract instance
   const contract = await ethers.getContractAt(
@@ -67,11 +83,16 @@ async function main() {
   const tokenId = await getTokenId(TOKEN);
   console.log(`Token ID: ${tokenId}`);
 
-  // Get signature from ApeStore API
+  // *** USAR ethForRouter PARA LA SIGNATURE (NO TOTAL_ETH) ***
+  console.log(
+    `Getting signature for amount: ${ethForRouter.toString()} wei (${ethers.utils.formatEther(
+      ethForRouter
+    )} ETH)`
+  );
   const signature = await getSignature(
     tokenId,
     VIVI_APESTORE_ADDRESS,
-    TOTAL_ETH.toString()
+    ethForRouter.toString() // ¡CAMBIO IMPORTANTE!
   );
   console.log(`Signature obtained: ${signature.substring(0, 20)}...`);
 
@@ -84,71 +105,94 @@ async function main() {
   };
 
   console.log(
-    `Executing buy with ${ethers.utils.formatEther(TOTAL_ETH)} ETH...`
+    `Executing buy with ${ethers.utils.formatEther(TOTAL_ETH)} ETH total...`
   );
   console.log(`Fee BPS: ${FEE_BPS} (${FEE_BPS / 100}%)`);
 
-  // Call the VIVIBuy function with the correct parameters
-  const tx = await contract.VIVIBuy(buyParams, FEE_BPS, {
-    value: TOTAL_ETH,
-    gasLimit: 1000000, // Set appropriate gas limit
-  });
+  try {
+    // Estimate gas first
+    console.log("Estimating gas...");
+    const gasEstimate = await contract.estimateGas.VIVIBuy(buyParams, FEE_BPS, {
+      value: TOTAL_ETH,
+    });
+    console.log(`Gas estimate: ${gasEstimate.toString()}`);
 
-  console.log(`Transaction submitted with hash: ${tx.hash}`);
+    // Call the VIVIBuy function with the correct parameters
+    const tx = await contract.VIVIBuy(buyParams, FEE_BPS, {
+      value: TOTAL_ETH,
+      gasLimit: gasEstimate.mul(120).div(100), // 20% buffer
+    });
 
-  // Wait for the transaction to be confirmed
-  console.log("Waiting for transaction confirmation...");
-  const receipt = await tx.wait();
+    console.log(
+      `Transaction submitted with hash: https://basescan.org/tx/${tx.hash}`
+    );
 
-  console.log(`✅ Buy transaction confirmed in block: ${receipt.blockNumber}`);
-  console.log(`Gas used: ${receipt.gasUsed.toString()}`);
+    // Wait for the transaction to be confirmed
+    console.log("Waiting for transaction confirmation...");
+    const receipt = await tx.wait();
 
-  // Try to extract any event logs
-  if (receipt.events && receipt.events.length > 0) {
-    try {
-      interface BuyEventArgs {
-        user: string;
-        token: string;
-        ethIn: BigNumber;
-        ethInAfterFee: BigNumber;
-        tokensOut: BigNumber;
-        feeAmount: BigNumber;
-      }
+    console.log(
+      `✅ Buy transaction confirmed in block: https://basescan.org/tx/${receipt.transactionHash}`
+    );
+    console.log(`Block number: ${receipt.blockNumber}`);
+    console.log(`Gas used: ${receipt.gasUsed.toString()}`);
 
-      interface BuyEvent {
-        event?: string;
-        args?: BuyEventArgs;
-        [key: string]: any;
-      }
+    // Try to extract any event logs
+    if (receipt.events && receipt.events.length > 0) {
+      try {
+        interface BuyEventArgs {
+          user: string;
+          token: string;
+          ethIn: BigNumber;
+          ethInAfterFee: BigNumber;
+          tokensOut: BigNumber;
+          feeAmount: BigNumber;
+        }
 
-      const buyEvent: BuyEvent | undefined = receipt.events.find(
-        (event: BuyEvent) => event.event === "Buy"
-      );
-      if (buyEvent && buyEvent.args) {
-        console.log("Buy event details:");
-        console.log(`- User: ${buyEvent.args.user}`);
-        console.log(`- Token: ${buyEvent.args.token}`);
-        console.log(
-          `- ETH In: ${ethers.utils.formatEther(buyEvent.args.ethIn)} ETH`
+        interface BuyEvent {
+          event?: string;
+          args?: BuyEventArgs;
+          [key: string]: any;
+        }
+
+        const buyEvent: BuyEvent | undefined = receipt.events.find(
+          (event: BuyEvent) => event.event === "Buy"
         );
-        console.log(
-          `- ETH After Fee: ${ethers.utils.formatEther(
-            buyEvent.args.ethInAfterFee
-          )} ETH`
-        );
-        console.log(`- Tokens Out: ${buyEvent.args.tokensOut.toString()}`);
-        console.log(
-          `- Fee Amount: ${ethers.utils.formatEther(
-            buyEvent.args.feeAmount
-          )} ETH`
-        );
+        if (buyEvent && buyEvent.args) {
+          console.log("=== Buy Event Details ===");
+          console.log(`- User: ${buyEvent.args.user}`);
+          console.log(`- Token: ${buyEvent.args.token}`);
+          console.log(
+            `- ETH In: ${ethers.utils.formatEther(buyEvent.args.ethIn)} ETH`
+          );
+          console.log(
+            `- ETH After Fee: ${ethers.utils.formatEther(
+              buyEvent.args.ethInAfterFee
+            )} ETH`
+          );
+          console.log(`- Tokens Out: ${buyEvent.args.tokensOut.toString()}`);
+          console.log(
+            `- Fee Amount: ${ethers.utils.formatEther(
+              buyEvent.args.feeAmount
+            )} ETH`
+          );
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.log("Could not parse event logs:", error.message);
+        } else {
+          console.log("Could not parse event logs:", error);
+        }
       }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log("Could not parse event logs:", error.message);
-      } else {
-        console.log("Could not parse event logs:", error);
-      }
+    }
+  } catch (error: any) {
+    console.error("❌ Transaction failed:");
+    console.error("Error:", error.message);
+    if (error.reason) {
+      console.error("Reason:", error.reason);
+    }
+    if (error.data) {
+      console.error("Data:", error.data);
     }
   }
 }

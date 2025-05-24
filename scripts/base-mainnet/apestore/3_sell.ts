@@ -6,15 +6,13 @@ dotenv.config();
 
 // Read environment variables
 const VIVI_APESTORE_ADDRESS = process.env.VIVI_APESTORE_CONTRACT!;
-const APESTORE_ROUTER = process.env.APESTORE_ROUTER!;
-const FEE_RECEIVER = process.env.FEE_RECEIVER!;
+const TOKEN = "0x48a733fd7a8e5ab4b0a83b2f344a74282376f020"; // Token to SELL
 
-if (!VIVI_APESTORE_ADDRESS || !APESTORE_ROUTER || !FEE_RECEIVER) {
+if (!VIVI_APESTORE_ADDRESS) {
   throw new Error("Missing required environment variables");
 }
 
 // Constants
-const TOKEN = "0xad2ef018d8252b61940b3363b23ff166f60d9fed"; // Token to sell
 const CHAIN_ID = 8453; // Base Chain ID
 const FEE_BPS = 100; // 1% fee
 const MIN_OUT = 0; // Minimum ETH to receive (0 = no minimum)
