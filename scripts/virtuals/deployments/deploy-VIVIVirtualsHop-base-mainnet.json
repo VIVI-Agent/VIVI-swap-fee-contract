@@ -1,0 +1,23 @@
+{
+  "contractName": "VIVIVirtualsHop",
+  "chain": "base-mainnet",
+  "address": "0xB160fC029511c4de217E7aCd166bF4f35514c703",
+  "deployer": "0x10cfCDE9a50c1E414aED74451Ad23C4540Dc447a",
+  "deploymentTimestamp": "2025-05-31T02:38:05.371Z",
+  "configuration": {
+    "feeReceiver": "0x31A57F2e2A5c293dE03AF73d0048aFd4F4f1Cde7",
+    "uniswapRouterv2": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+    "WETH": "0x4200000000000000000000000000000000000006",
+    "VIRTUAL": "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b"
+  },
+  "routes": {
+    "buy": "ETH → VIRTUAL → TOKEN",
+    "sell": "TOKEN → VIRTUAL → ETH"
+  },
+  "fees": {
+    "protocolVersion": "UniswapV2",
+    "description": "Uses Uniswap V2 pool fees automatically"
+  },
+  "maxFeeBps": 100,
+  "virtualPool": "0x9c087eb773291e50cf6c6a90ef0f4500e349b903"
+}
