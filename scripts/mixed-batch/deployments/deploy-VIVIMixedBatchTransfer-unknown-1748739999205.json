@@ -1,0 +1,16 @@
+{
+  "contractName": "VIVIMixedBatchTransfer",
+  "contractAddress": "0xDA3e9bEebe70040322fE0aC8971CBFE14E6D65b9",
+  "deployerAddress": "0x0A81262b05FF94fc1133fc8e473Dba9EB0cc87d7",
+  "transactionHash": "0x484b6df96def881c6b08a0b6b73085609e4f68a0a13533842aa0d450d5e4814b",
+  "blockNumber": 26485852,
+  "network": {
+    "name": "unknown",
+    "chainId": 84532
+  },
+  "deploymentDate": "2025-06-01T01:06:39.205Z",
+  "contractInfo": {
+    "owner": "0x0A81262b05FF94fc1133fc8e473Dba9EB0cc87d7",
+    "maxRecipientsPerBatch": "500"
+  }
+}

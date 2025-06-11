@@ -1,0 +1,12 @@
+{
+  "contractName": "VIVIBotBatchFunder",
+  "chain": "base-mainnet",
+  "address": "0xDECa2416e84dF2CB0A2482977cDf9365CE65Ed2E",
+  "deployer": "0x0A81262b05FF94fc1133fc8e473Dba9EB0cc87d7",
+  "timestamp": "2025-06-11T20:23:29.552Z",
+  "deploymentBlock": 31442030,
+  "maxRecipientsPerBatch": "10",
+  "minAmountPerRecipient": "0.001",
+  "gasUsedForDeployment": "TBD",
+  "optimizedFor": "VIVI Bot - 4 wallet burst funding every 2 seconds"
+}
