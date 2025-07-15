@@ -2,17 +2,18 @@
 pragma solidity ^0.8.20;
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../utils/VIVIFeeManager.sol";
 
 /**
  * @title VIVIUniswapV2
  * @notice Enables swaps on Uniswap V2 with an ETH fee,
  *         using VIVIBuy (ETH->tokens) and VIVISell (tokens->ETH),
  *         and Buy / Sell events to report activity.
+ *         Supports multiple fee receivers with configurable percentages.
  */
-contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
+contract VIVIUniswapV2 is ReentrancyGuard, VIVIFeeManager {
     struct SwapParams {
         address[] path;
         uint256 amountIn;
@@ -20,10 +21,8 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         uint256 deadline;
     }
 
-    address public feeReceiver;
     IUniswapV2Router02 public uniswapRouter;
 
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
     event RouterUpdated(address indexed newRouter);
 
     /**
@@ -62,17 +61,12 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         uint256 feeAmount
     );
 
-    constructor(address _router, address _feeReceiver) Ownable(msg.sender) {
+    constructor(
+        address _router,
+        address _feeReceiver
+    ) VIVIFeeManager(_feeReceiver) {
         require(_router != address(0), "Router=0");
-        require(_feeReceiver != address(0), "Fee=0");
         uniswapRouter = IUniswapV2Router02(_router);
-        feeReceiver = _feeReceiver;
-    }
-
-    function setFeeReceiver(address _fr) external onlyOwner {
-        require(_fr != address(0), "fr=0");
-        feeReceiver = _fr;
-        emit FeeReceiverUpdated(_fr);
     }
 
     function setRouter(address _r) external onlyOwner {
@@ -81,23 +75,18 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         emit RouterUpdated(_r);
     }
 
-    function _calculateFee(
-        uint256 amount,
-        uint256 bps
-    ) internal pure returns (uint256) {
-        return (amount * bps) / 10000;
-    }
-
     /**
      * @notice VIVISell => tokens->ETH with an ETH fee applied after the swap.
      * @param params Swap parameters
      * @param feeBps e.g. 50 => 0.5%, 100 => 1.00%
      * @param slippagePercent 0..50%
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVISell(
         SwapParams calldata params,
         uint256 feeBps,
-        uint256 slippagePercent
+        uint256 slippagePercent,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external nonReentrant {
         require(params.path.length >= 2, "path <2");
         address tokenIn = params.path[0];
@@ -153,12 +142,18 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         uint256 ethGot = ethAfter - ethBefore;
         require(ethGot > 0, "No ETH out");
 
-        // 5) Fee
+        // 5) Fee distribution
         uint256 feeAmount = _calculateFee(ethGot, feeBps);
         uint256 ethNet = ethGot - feeAmount;
 
-        (bool feeOk, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeOk, "Fee transfer fail");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         // 6) Send net ETH to user
         (bool userOk, ) = params.recipient.call{value: ethNet}("");
@@ -179,11 +174,13 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
      * @param params Swap parameters
      * @param feeBps e.g. 50 => 0.5%, 100 => 1.00%
      * @param slippagePercent 0..50%
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIBuy(
         SwapParams calldata params,
         uint256 feeBps,
-        uint256 slippagePercent
+        uint256 slippagePercent,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external payable nonReentrant {
         require(params.path.length >= 2, "path<2");
         require(params.path[0] == uniswapRouter.WETH(), "first!=WETH");
@@ -193,12 +190,15 @@ contract VIVIUniswapV2 is ReentrancyGuard, Ownable {
         require(feeBps <= 100, "fee>1%");
         require(slippagePercent <= 50, "slippage>50%");
 
-        // 1) Fee
+        // 1) Fee distribution
         uint256 feeAmt = _calculateFee(msg.value, feeBps);
         uint256 ethNet = msg.value - feeAmt;
 
-        (bool feeOk, ) = feeReceiver.call{value: feeAmt}("");
-        require(feeOk, "Fee transfer fail");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(feeAmt, additionalFeeReceivers);
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         uint256 amountOutMin;
         try uniswapRouter.getAmountsOut(ethNet, params.path) returns (

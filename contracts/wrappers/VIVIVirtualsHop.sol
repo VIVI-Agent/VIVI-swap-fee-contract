@@ -2,17 +2,18 @@
 pragma solidity ^0.8.20;
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../utils/VIVIFeeManager.sol";
 
 /**
  * @title VIVIVirtualsHop
  * @notice Enables multi-hop swaps on Uniswap V2 with fixed Virtuals routing and ETH fees.
  *         Buy: ETH → VIRTUAL → TOKEN
  *         Sell: TOKEN → VIRTUAL → ETH
+ *         Supports multiple fee receivers with configurable percentages.
  */
-contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
+contract VIVIVirtualsHop is ReentrancyGuard, VIVIFeeManager {
     /**
      * @dev MultiHopParams for Virtuals routing:
      *  - tokenTarget => the final token (for buy) or initial token (for sell)
@@ -29,12 +30,10 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
         uint256 amountIn; // Only used for sell
     }
 
-    address public feeReceiver;
     IUniswapV2Router02 public uniswapRouter;
     address public WETH;
     address public VIRTUAL;
 
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
     event RouterUpdated(address indexed newRouter);
     event TokenAddressUpdated(string tokenName, address indexed newAddress);
 
@@ -73,25 +72,14 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
         address _feeReceiver,
         address _weth,
         address _virtual
-    ) Ownable(msg.sender) {
+    ) VIVIFeeManager(_feeReceiver) {
         require(_v2Router != address(0), "Invalid router");
-        require(_feeReceiver != address(0), "Invalid feeReceiver");
         require(_weth != address(0), "Invalid WETH");
         require(_virtual != address(0), "Invalid VIRTUAL");
 
         uniswapRouter = IUniswapV2Router02(_v2Router);
-        feeReceiver = _feeReceiver;
         WETH = _weth;
         VIRTUAL = _virtual;
-    }
-
-    /**
-     * @notice Updates the fee receiver address.
-     */
-    function setFeeReceiver(address _feeReceiver) external onlyOwner {
-        require(_feeReceiver != address(0), "feeReceiver=0");
-        feeReceiver = _feeReceiver;
-        emit FeeReceiverUpdated(_feeReceiver);
     }
 
     /**
@@ -119,23 +107,15 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @dev Calculates fee in basis points (50 => 0.5%, 100 => 1%).
-     */
-    function _calculateFee(
-        uint256 amount,
-        uint256 feeBps
-    ) internal pure returns (uint256) {
-        return (amount * feeBps) / 10000;
-    }
-
-    /**
      * @notice VIVIVirtualsSell => tokens->ETH via TOKEN → VIRTUAL → ETH
      * @param params MultiHop parameters
      * @param feeBps Fee in basis points (max 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIVirtualsSell(
         MultiHopParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external nonReentrant {
         require(params.amountIn > 0, "No input tokens");
         require(feeBps <= 100, "Max 1% fee");
@@ -206,12 +186,18 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
         uint256 ethReceived = ethAfter - ethBefore;
         require(ethReceived > 0, "No ETH from swap");
 
-        // 7) Fee in ETH
+        // 7) Fee distribution
         uint256 feeAmount = _calculateFee(ethReceived, feeBps);
         uint256 ethAfterFee = ethReceived - feeAmount;
 
-        (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeSent, "Fee transfer failed");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         // 8) Send net ETH to user
         (bool sentUser, ) = params.recipient.call{value: ethAfterFee}("");
@@ -231,10 +217,12 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
      * @notice VIVIVirtualsBuy => ETH->tokens via ETH → VIRTUAL → TOKEN
      * @param params MultiHop parameters
      * @param feeBps Fee in basis points (max 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIVirtualsBuy(
         MultiHopParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external payable nonReentrant {
         require(msg.value > 0, "No ETH sent");
         require(feeBps <= 100, "Max 1% fee");
@@ -244,12 +232,18 @@ contract VIVIVirtualsHop is ReentrancyGuard, Ownable {
             "Invalid target token"
         );
 
-        // 1) Fee in ETH
+        // 1) Fee distribution
         uint256 feeAmount = _calculateFee(msg.value, feeBps);
         uint256 ethAfterFee = msg.value - feeAmount;
 
-        (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeSent, "Fee transfer failed");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         // 2) Build path: WETH → VIRTUAL → TOKEN
         address[] memory path = new address[](3);

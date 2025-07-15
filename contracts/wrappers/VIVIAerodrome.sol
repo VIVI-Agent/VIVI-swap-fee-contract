@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../utils/VIVIFeeManager.sol";
 
 /**
  * @title VIVIAerodrome
  * @notice Wrapper that allows charging an ETH fee on Aerodrome swaps,
  *         providing VIVIBuy (ETH->tokens) and VIVISell (tokens->ETH) functions,
  *         and Buy / Sell events for reporting.
+ *         Supports multiple fee receivers with configurable percentages.
  */
-contract VIVIAerodrome is ReentrancyGuard, Ownable {
+contract VIVIAerodrome is ReentrancyGuard, VIVIFeeManager {
     /**
      * @dev In Aerodrome, each "Route" has: (from, to, stable, factory).
      *      Example of a 1-hop route: [{ from: WETH, to: tokenOut, stable: false, factory: <volatileFactory> }]
@@ -37,10 +38,8 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
     }
 
     IAerodromeRouter public aerodromeRouter;
-    address public feeReceiver;
     address public WETH;
 
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
     event RouterUpdated(address indexed newRouter);
     event WETHUpdated(address indexed newWETH);
 
@@ -89,23 +88,11 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
         address _router,
         address _feeReceiver,
         address _weth
-    ) Ownable(msg.sender) {
+    ) VIVIFeeManager(_feeReceiver) {
         require(_router != address(0), "router=0");
-        require(_feeReceiver != address(0), "feeReceiver=0");
         require(_weth != address(0), "WETH=0");
         aerodromeRouter = IAerodromeRouter(_router);
-        feeReceiver = _feeReceiver;
         WETH = _weth;
-    }
-
-    /**
-     * @notice Updates the fee receiver address.
-     * @param _newFR The new fee receiver address
-     */
-    function setFeeReceiver(address _newFR) external onlyOwner {
-        require(_newFR != address(0), "fr=0");
-        feeReceiver = _newFR;
-        emit FeeReceiverUpdated(_newFR);
     }
 
     /**
@@ -129,26 +116,18 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @dev Helper to calculate the fee based on 10000 basis points (e.g. 50 => 0.5%, 100 => 1%).
-     */
-    function _calcFee(
-        uint256 amt,
-        uint256 bps
-    ) internal pure returns (uint256) {
-        return (amt * bps) / 10000;
-    }
-
-    /**
      * @notice VIVISell: tokens->ETH with an ETH fee (post-swap).
      *         The last route.to must be WETH => the contract unwraps to ETH.
      * @param params SwapParams (routes, amountIn, recipient, deadline)
      * @param feeBps Fee in basis points (e.g. 50 => 0.5%, 100 => 1%)
      * @param slippagePercent 0..50% max
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVISell(
         SwapParams calldata params,
         uint256 feeBps,
-        uint256 slippagePercent
+        uint256 slippagePercent,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external nonReentrant {
         require(params.routes.length >= 1, "no routes");
         require(feeBps <= 100, "fee>1%");
@@ -207,12 +186,18 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
         uint256 ethGot = ethBalAfter - ethBalBefore;
         require(ethGot > 0, "No ETH out");
 
-        // Fee
-        uint256 feeAmount = _calcFee(ethGot, feeBps);
+        // Fee distribution
+        uint256 feeAmount = _calculateFee(ethGot, feeBps);
         uint256 ethNet = ethGot - feeAmount;
 
-        (bool feeOk, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeOk, "Fee transfer  fail");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         (bool userOk, ) = params.recipient.call{value: ethNet}("");
         require(userOk, " ETH transfer fail");
@@ -233,22 +218,27 @@ contract VIVIAerodrome is ReentrancyGuard, Ownable {
      * @param params SwapParams (routes, amountIn, recipient, deadline)
      * @param feeBps Fee in basis points
      * @param slippagePercent Max 50%
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIBuy(
         SwapParams calldata params,
         uint256 feeBps,
-        uint256 slippagePercent
+        uint256 slippagePercent,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external payable nonReentrant {
         require(params.routes.length >= 1, "no routes");
         require(feeBps <= 100, "fee>1%");
         require(slippagePercent <= 50, "slippage>50%");
         require(msg.value > 0, "no ETH");
 
-        uint256 feeAmt = _calcFee(msg.value, feeBps);
+        uint256 feeAmt = _calculateFee(msg.value, feeBps);
         uint256 ethAfterFee = msg.value - feeAmt;
 
-        (bool feeOk, ) = feeReceiver.call{value: feeAmt}("");
-        require(feeOk, "fee fail");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(feeAmt, additionalFeeReceivers);
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         address tokenOut = params.routes[params.routes.length - 1].to;
         require(tokenOut != address(0), "tokenOut=0");

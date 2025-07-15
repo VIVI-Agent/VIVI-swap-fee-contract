@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../utils/VIVIFeeManager.sol";
 
 /**
  * @title VIVIZoraMultiHop
  * @notice Enables multi-hop swaps on Uniswap V3 with fixed Zora routing and ETH fees.
  *         Buy: ETH → USDC → ZORA → TOKEN (fees: 500, 3000, 10000)
  *         Sell: TOKEN → ZORA → USDC → ETH (fees: 10000, 3000, 500)
+ *         Supports multiple fee receivers with configurable percentages.
  */
-contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
+contract VIVIZoraMultiHop is ReentrancyGuard, VIVIFeeManager {
     /**
      * @dev MultiHopParams for Zora routing:
      *  - tokenTarget => the final token (for buy) or initial token (for sell)
@@ -28,7 +29,6 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
         uint256 amountIn; // Only used for sell
     }
 
-    address public feeReceiver;
     ISwapRouter public uniswapRouter;
     address public WETH;
     address public USDC;
@@ -39,7 +39,6 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
     uint24 constant FEE_USDC_ZORA = 3000; // 0.3%
     uint24 constant FEE_ZORA_TOKEN = 10000; // 1%
 
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
     event RouterUpdated(address indexed newRouter);
     event TokenAddressUpdated(string tokenName, address indexed newAddress);
 
@@ -80,27 +79,16 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
         address _weth,
         address _usdc,
         address _zora
-    ) Ownable(msg.sender) {
+    ) VIVIFeeManager(_feeReceiver) {
         require(_v3Router != address(0), "Invalid router");
-        require(_feeReceiver != address(0), "Invalid feeReceiver");
         require(_weth != address(0), "Invalid WETH");
         require(_usdc != address(0), "Invalid USDC");
         require(_zora != address(0), "Invalid ZORA");
 
         uniswapRouter = ISwapRouter(_v3Router);
-        feeReceiver = _feeReceiver;
         WETH = _weth;
         USDC = _usdc;
         ZORA = _zora;
-    }
-
-    /**
-     * @notice Updates the fee receiver address.
-     */
-    function setFeeReceiver(address _feeReceiver) external onlyOwner {
-        require(_feeReceiver != address(0), "feeReceiver=0");
-        feeReceiver = _feeReceiver;
-        emit FeeReceiverUpdated(_feeReceiver);
     }
 
     /**
@@ -131,16 +119,6 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
         require(_newZORA != address(0), "ZORA=0");
         ZORA = _newZORA;
         emit TokenAddressUpdated("ZORA", _newZORA);
-    }
-
-    /**
-     * @dev Calculates fee in basis points (50 => 0.5%, 100 => 1%).
-     */
-    function _calculateFee(
-        uint256 amount,
-        uint256 feeBps
-    ) internal pure returns (uint256) {
-        return (amount * feeBps) / 10000;
     }
 
     /**
@@ -178,10 +156,12 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
      * @notice VIVIZoraSell => tokens->ETH via TOKEN → ZORA → USDC → ETH
      * @param params MultiHop parameters
      * @param feeBps Fee in basis points (max 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIZoraSell(
         MultiHopParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external nonReentrant {
         require(params.amountIn > 0, "No input tokens");
         require(feeBps <= 100, "Max 1% fee");
@@ -257,12 +237,18 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
         uint256 ethUnwrapped = newEthBal - oldEthBal;
         require(ethUnwrapped > 0, "No ETH unwrapped");
 
-        // 6) Fee in ETH
+        // 6) Fee distribution
         uint256 feeAmount = _calculateFee(ethUnwrapped, feeBps);
         uint256 ethAfterFee = ethUnwrapped - feeAmount;
 
-        (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeSent, "Fee transfer failed");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         // 7) Send net ETH to user
         (bool sentUser, ) = params.recipient.call{value: ethAfterFee}("");
@@ -282,10 +268,12 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
      * @notice VIVIZoraBuy => ETH->tokens via ETH → USDC → ZORA → TOKEN
      * @param params MultiHop parameters
      * @param feeBps Fee in basis points (max 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIZoraBuy(
         MultiHopParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external payable nonReentrant {
         require(msg.value > 0, "No ETH sent");
         require(feeBps <= 100, "Max 1% fee");
@@ -296,12 +284,18 @@ contract VIVIZoraMultiHop is ReentrancyGuard, Ownable {
             "Invalid target token"
         );
 
-        // 1) Fee in ETH
+        // 1) Fee distribution
         uint256 feeAmount = _calculateFee(msg.value, feeBps);
         uint256 ethAfterFee = msg.value - feeAmount;
 
-        (bool feeSent, ) = feeReceiver.call{value: feeAmount}("");
-        require(feeSent, "Fee transfer failed");
+        // Distribute fees to additional receivers first
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
+
+        // Send remaining fee to default receiver
+        _sendToDefaultReceiver(remainingFee);
 
         // 2) Wrap ETH into WETH
         (bool successWrap, ) = WETH.call{value: ethAfterFee}(

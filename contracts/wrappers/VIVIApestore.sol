@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "../utils/VIVIFeeManager.sol";
 
 interface IApeStoreRouter {
     function buy(
@@ -35,7 +35,7 @@ interface IERC20 {
     ) external view returns (uint256);
 }
 
-contract VIVIApeStore is ReentrancyGuard, Ownable {
+contract VIVIApeStore is ReentrancyGuard, VIVIFeeManager {
     struct BuyParams {
         address token;
         uint256 minOut;
@@ -52,9 +52,6 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
     }
 
     address public immutable apeStoreRouter;
-    address public feeReceiver;
-
-    event FeeReceiverUpdated(address indexed newFeeReceiver);
 
     event TokensHeld(
         address indexed user,
@@ -83,34 +80,21 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
     constructor(
         address _apeStoreRouter,
         address _feeReceiver
-    ) Ownable(msg.sender) {
+    ) VIVIFeeManager(_feeReceiver) {
         require(_apeStoreRouter != address(0), "Invalid router");
-        require(_feeReceiver != address(0), "Invalid fee receiver");
         apeStoreRouter = _apeStoreRouter;
-        feeReceiver = _feeReceiver;
-    }
-
-    function setFeeReceiver(address _feeReceiver) external onlyOwner {
-        require(_feeReceiver != address(0), "Invalid fee receiver");
-        feeReceiver = _feeReceiver;
-        emit FeeReceiverUpdated(_feeReceiver);
-    }
-
-    function _calculateFee(
-        uint256 amount,
-        uint256 bps
-    ) internal pure returns (uint256) {
-        return (amount * bps) / 10000;
     }
 
     /**
      * @notice VIVIBuy para ApeStore - ETH->tokens con fee
      * @param params Parámetros de compra
      * @param feeBps Fee en basis points (ej: 50 = 0.5%, 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVIBuy(
         BuyParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external payable nonReentrant {
         require(params.token != address(0), "Invalid token");
         require(msg.value > 0, "No ETH sent");
@@ -123,16 +107,19 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
 
         require(ethForRouter > 0, "Insufficient ETH after fee");
 
-        // 2) Enviar fee al receiver
-        if (feeAmount > 0) {
-            (bool feeSuccess, ) = feeReceiver.call{value: feeAmount}("");
-            require(feeSuccess, "Fee transfer failed");
-        }
+        // 2) Distribuir fees a receptores adicionales primero
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
 
-        // 3) Medir balance de tokens antes del swap
+        // 3) Enviar fee restante al receptor por defecto
+        _sendToDefaultReceiver(remainingFee);
+
+        // 4) Medir balance de tokens antes del swap
         uint256 balanceBefore = IERC20(params.token).balanceOf(address(this));
 
-        // 4) Ejecutar compra en ApeStore
+        // 5) Ejecutar compra en ApeStore
         IApeStoreRouter(apeStoreRouter).buy{value: ethForRouter}(
             params.token,
             ethForRouter,
@@ -140,11 +127,11 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
             params.signature
         );
 
-        // 5) Calcular tokens recibidos
+        // 6) Calcular tokens recibidos
         uint256 balanceAfter = IERC20(params.token).balanceOf(address(this));
         uint256 tokensReceived = balanceAfter - balanceBefore;
 
-        // 6) Transferir tokens al recipient
+        // 7) Transferir tokens al recipient
         if (tokensReceived > 0) {
             try
                 IERC20(params.token).transfer(params.recipient, tokensReceived)
@@ -170,10 +157,12 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
      * @notice VIVISell para ApeStore - tokens->ETH con fee
      * @param params Parámetros de venta
      * @param feeBps Fee en basis points (ej: 50 = 0.5%, 100 = 1%)
+     * @param additionalFeeReceivers Optional array of additional fee receivers with their BPS
      */
     function VIVISell(
         SellParams calldata params,
-        uint256 feeBps
+        uint256 feeBps,
+        FeeReceiver[] calldata additionalFeeReceivers
     ) external nonReentrant {
         require(params.token != address(0), "Invalid token");
         require(params.amount > 0, "Invalid amount");
@@ -221,13 +210,16 @@ contract VIVIApeStore is ReentrancyGuard, Ownable {
         uint256 feeAmount = _calculateFee(ethReceived, feeBps);
         uint256 ethForUser = ethReceived - feeAmount;
 
-        // 7) Enviar fee al receiver
-        if (feeAmount > 0) {
-            (bool feeSuccess, ) = feeReceiver.call{value: feeAmount}("");
-            require(feeSuccess, "Fee transfer failed");
-        }
+        // 7) Distribuir fees a receptores adicionales primero
+        uint256 remainingFee = _distributeFees(
+            feeAmount,
+            additionalFeeReceivers
+        );
 
-        // 8) Enviar ETH al recipient
+        // 8) Enviar fee restante al receptor por defecto
+        _sendToDefaultReceiver(remainingFee);
+
+        // 9) Enviar ETH al recipient
         (bool userSuccess, ) = params.recipient.call{value: ethForUser}("");
         require(userSuccess, "ETH transfer failed");
 
