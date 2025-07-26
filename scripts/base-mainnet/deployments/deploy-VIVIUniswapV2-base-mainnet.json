@@ -1,7 +1,7 @@
 {
   "contractName": "VIVIUniswapV2",
   "chain": "base-mainnet",
-  "address": "0xA9307e8964C9e7132f25B711ff0EA74cc3AF49A8",
+  "address": "0x70106FaEF78c090B99b86DaCfb853D261C451f5E",
   "feeReceiver": "0x31A57F2e2A5c293dE03AF73d0048aFd4F4f1Cde7",
   "uniswapRouter": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"
 }

@@ -1,0 +1,7 @@
+{
+  "contractName": "VIVIApeStore",
+  "chain": "base-mainnet",
+  "address": "0x17874DFc3438a846f8F90af7Af9CF3bAf603B1d4",
+  "feeReceiver": "0x31a57f2e2a5c293de03af73d0048afd4f4f1cde7",
+  "apestoreRouter": "0xc750af290bb41ca5dec04f22cd1318e940dd826a"
+}
